@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-app
+  labels:
+    app: saas-app
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: saas-app
+  template:
+    metadata:
+      labels:
+        app: saas-app
+        tier: frontend
+    spec:
+      containers:
+        - name: saas-app
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-saas-app:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: saas-app-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5

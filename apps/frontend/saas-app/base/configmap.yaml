@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: saas-app-config
+data:
+  ENVIRONMENT: "dev"
+  LOG_LEVEL: "info"
+  # Add non-secret configuration here

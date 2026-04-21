@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: saas-app
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-saas-app:stable

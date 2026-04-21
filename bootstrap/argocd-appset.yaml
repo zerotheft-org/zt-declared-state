@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: zerotheft-apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - service: auth-service
+            category: backend
+          - service: audit-service
+            category: backend
+          - service: billing-service
+            category: backend
+          - service: notification-service
+            category: backend
+          - service: saas-app
+            category: frontend
+          - service: tenant-app
+            category: frontend
+          - service: onboarding-app
+            category: frontend
+  template:
+    metadata:
+      name: "{{service}}"
+    spec:
+      project: zerotheft
+      source:
+        repoURL: https://github.com/zerotheft-org/zt-declared-state.git
+        targetRevision: main
+        path: "apps/{{category}}/{{service}}/overlays/dev"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: zerotheft-dev
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

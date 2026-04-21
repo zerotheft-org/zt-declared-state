@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: onboarding-app
+  labels:
+    app: onboarding-app
+spec:
+  selector:
+    app: onboarding-app
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+  type: ClusterIP

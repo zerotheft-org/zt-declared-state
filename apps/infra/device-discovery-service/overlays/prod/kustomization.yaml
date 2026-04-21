@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: zerotheft-prod
+
+resources:
+  - ../../base
+
+patches:
+  - path: image-tag.yaml
+  - path: replica-count.yaml
+
+namePrefix: prod-
+
+commonLabels:
+  environment: prod

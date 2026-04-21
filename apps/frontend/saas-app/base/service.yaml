@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: saas-app
+  labels:
+    app: saas-app
+spec:
+  selector:
+    app: saas-app
+  ports:
+    - port: 80
+      targetPort: 3000
+      name: http
+  type: ClusterIP
