@@ -1,9 +1,10 @@
-# zt-declared-state — GitOps Desired State Repository
-# ISOLATED: Only Platform team has write access
-* @zerotheft-org/zt-platform
+# Global - Cross reviewers must review everything
+* @zerotheft-org/zt-cross-reviewers
 
-# Cross-reviewers have read-only access (enforced via GitHub branch protection)
-# All changes MUST go through PR review by @zerotheft-org/zt-platform
+# Domain specific ownership
+/src/ @zerotheft-org/zt-platform @zerotheft-org/zt-cross-reviewers
 
-# CI/CD automation can update image-tag.yaml patches only
-**/image-tag.yaml @zerotheft-org/zt-platform
+# Infrastructure changes need platform eyes
+/Dockerfile @zerotheft-org/zt-platform @zerotheft-org/zt-cross-reviewers
+/.github/ @zerotheft-org/zt-platform
+
