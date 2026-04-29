@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: notification-service
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-be-notification-service:latest
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-be-notification-service:latest
           ports:
             - containerPort: 8001
               name: http

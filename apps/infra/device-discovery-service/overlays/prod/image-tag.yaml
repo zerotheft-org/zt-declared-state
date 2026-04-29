@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: device-discovery-service
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-inf-device-discovery-service:stable
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-inf-device-discovery-service:stable

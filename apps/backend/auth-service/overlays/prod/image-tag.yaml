@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-be-auth-service:stable
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-be-auth-service:stable

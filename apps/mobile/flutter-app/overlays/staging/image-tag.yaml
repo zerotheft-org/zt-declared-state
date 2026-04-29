@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: flutter-app
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-mo-app:staging
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-mo-app:staging

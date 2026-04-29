@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: tenant-app
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-tenant-app:latest
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-tenant-app:latest
           ports:
             - containerPort: 3000
               name: http

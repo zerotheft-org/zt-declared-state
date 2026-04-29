@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: onboarding-app
-          image: <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-onboarding-app:stable
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-onboarding-app:stable
