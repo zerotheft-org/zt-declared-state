@@ -1,0 +1,44 @@
+name: deploy-to-dev
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy manifests to Dev EKS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::475966408127:role/zt-terraform-ci
+          aws-region: us-east-1
+
+      - name: Update kubeconfig for Dev EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region us-east-1 \
+            --name zt-dev-platform-eks \
+            --role-arn arn:aws:iam::647097321811:role/OrganizationAccountAccessRole
+
+      - name: Apply namespace
+        run: kubectl apply -f environments/dev/namespace-configs/namespace.yaml
+
+      - name: Apply ArgoCD ApplicationSet
+        run: kubectl apply -f bootstrap/argocd-appset.yaml
+
+      - name: Verify deployments
+        run: |
+          sleep 10
+          kubectl get applications -n argocd
+          kubectl get pods -n zerotheft-dev
