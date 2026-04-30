@@ -29,6 +29,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::647097321811:role/OrganizationAccountAccessRole
           role-chaining: true
+          role-skip-session-tagging: true
           aws-region: us-east-1
 
       - name: Update kubeconfig for Dev EKS
