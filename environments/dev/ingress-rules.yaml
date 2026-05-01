@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zerotheft-dev-ingress
+  namespace: zerotheft-dev
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    external-dns.alpha.kubernetes.io/hostname: "api.dev.zerotheft.com,app.dev.zerotheft.com"
+spec:
+  ingressClassName: alb
+  rules:
+    - host: api.dev.zerotheft.com
+      http:
+        paths:
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-auth-service
+                port:
+                  number: 80
+          - path: /audit
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-audit-service
+                port:
+                  number: 80
+          - path: /billing
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-billing-service
+                port:
+                  number: 80
+          - path: /notification
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-notification-service
+                port:
+                  number: 80
+    - host: app.dev.zerotheft.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dev-saas-app
+                port:
+                  number: 80

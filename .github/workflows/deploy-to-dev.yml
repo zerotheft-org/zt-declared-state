@@ -41,8 +41,12 @@ jobs:
       - name: Apply ArgoCD ApplicationSet
         run: kubectl apply -f bootstrap/argocd-appset.yaml
 
+      - name: Apply Dev Ingress
+        run: kubectl apply -f environments/dev/ingress-rules.yaml
+
       - name: Verify deployments
         run: |
           sleep 10
           kubectl get applications -n argocd
           kubectl get pods -n zerotheft-dev
+          kubectl get ingress -n zerotheft-dev
