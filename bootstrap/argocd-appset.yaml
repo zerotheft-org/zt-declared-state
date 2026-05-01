@@ -17,10 +17,6 @@ spec:
             category: backend
           - service: saas-app
             category: frontend
-          - service: tenant-app
-            category: frontend
-          - service: onboarding-app
-            category: frontend
   template:
     metadata:
       name: "{{service}}"
