@@ -7,4 +7,4 @@ spec:
     spec:
       containers:
         - name: saas-app
-          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zt/saas-app:latest
+          image: 744561091152.dkr.ecr.us-east-1.amazonaws.com/zerotheft/zt-fe-saas-app:latest
