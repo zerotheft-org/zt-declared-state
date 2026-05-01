@@ -7,11 +7,11 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-    external-dns.alpha.kubernetes.io/hostname: "api.dev.zerotheft.com,app.dev.zerotheft.com"
+    external-dns.alpha.kubernetes.io/hostname: "api.test.zerotheft.com,app.test.zerotheft.com"
 spec:
   ingressClassName: alb
   rules:
-    - host: api.dev.zerotheft.com
+    - host: api.test.zerotheft.com
       http:
         paths:
           - path: /auth
@@ -42,7 +42,7 @@ spec:
                 name: dev-notification-service
                 port:
                   number: 80
-    - host: app.dev.zerotheft.com
+    - host: app.test.zerotheft.com
       http:
         paths:
           - path: /
