@@ -5,10 +5,12 @@ namespace: zerotheft-dev
 
 resources:
   - ../../base
+  - serviceaccount.yaml
 
 patches:
   - path: image-tag.yaml
   - path: replica-count.yaml
+  - path: vault-injection.yaml
 
 namePrefix: dev-
 

@@ -1,0 +1,45 @@
+# Vault Agent Sidecar Injection Patch
+# 
+# This patch enables HashiCorp Vault Agent sidecar injection for the auth-service.
+# The Vault Agent will:
+#   1. Authenticate to Vault using the Kubernetes auth method
+#   2. Fetch secrets from the configured paths
+#   3. Write them to /vault/secrets/ files in the pod
+#
+# Your application should read secrets from these files:
+#   - /vault/secrets/db   (database credentials)
+#   - /vault/secrets/jwt  (JWT signing secret)
+#
+# The dev-auth-service ServiceAccount must exist and be bound to the
+# Vault Kubernetes auth role "auth-service".
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "auth-service"
+        vault.hashicorp.com/agent-pre-populate: "true"
+        vault.hashicorp.com/agent-run-as-user: "65534"
+        # Database credentials from Vault
+        vault.hashicorp.com/agent-inject-secret-db: "secret/auth-service/db"
+        vault.hashicorp.com/agent-inject-template-db: |
+          {{ with secret "secret/auth-service/db" -}}
+          DB_HOST={{ .Data.data.host }}
+          DB_PORT={{ .Data.data.port }}
+          DB_NAME={{ .Data.data.database }}
+          DB_USER={{ .Data.data.username }}
+          DB_PASSWORD={{ .Data.data.password }}
+          {{- end }}
+        # JWT secret from Vault
+        vault.hashicorp.com/agent-inject-secret-jwt: "secret/auth-service/jwt"
+        vault.hashicorp.com/agent-inject-template-jwt: |
+          {{ with secret "secret/auth-service/jwt" -}}
+          JWT_SECRET={{ .Data.data.secret }}
+          {{- end }}
+    spec:
+      serviceAccountName: dev-auth-service

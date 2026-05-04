@@ -1,0 +1,28 @@
+# Vault Agent Sidecar Injection Patch
+#
+# Injects secrets from Vault into /vault/secrets/ files:
+#   - /vault/secrets/db  (database credentials)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+spec:
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "audit-service"
+        vault.hashicorp.com/agent-pre-populate: "true"
+        vault.hashicorp.com/agent-run-as-user: "65534"
+        vault.hashicorp.com/agent-inject-secret-db: "secret/audit-service/db"
+        vault.hashicorp.com/agent-inject-template-db: |
+          {{ with secret "secret/audit-service/db" -}}
+          DB_HOST={{ .Data.data.host }}
+          DB_PORT={{ .Data.data.port }}
+          DB_NAME={{ .Data.data.database }}
+          DB_USER={{ .Data.data.username }}
+          DB_PASSWORD={{ .Data.data.password }}
+          {{- end }}
+    spec:
+      serviceAccountName: dev-audit-service

@@ -1,0 +1,25 @@
+# Vault Agent Sidecar Injection Patch
+#
+# Injects shared secrets from Vault into /vault/secrets/ files.
+# Add specific secrets for the saas-app as needed.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas-app
+spec:
+  template:
+    metadata:
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "saas-app"
+        vault.hashicorp.com/agent-pre-populate: "true"
+        vault.hashicorp.com/agent-run-as-user: "65534"
+        # Example: inject shared API keys
+        # vault.hashicorp.com/agent-inject-secret-apikeys: "secret/shared/apikeys"
+        # vault.hashicorp.com/agent-inject-template-apikeys: |
+        #   {{ with secret "secret/shared/apikeys" -}}
+        #   API_KEY={{ .Data.data.key }}
+        #   {{- end }}
+    spec:
+      serviceAccountName: dev-saas-app
