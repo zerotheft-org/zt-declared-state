@@ -1,0 +1,165 @@
+name: Vault Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Vault action to perform"
+        required: true
+        default: "status"
+        type: choice
+        options:
+          - status
+          - init
+          - configure
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  vault:
+    name: "Vault ${{ github.event.inputs.action }}"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (Management)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::475966408127:role/zt-terraform-ci
+          aws-region: us-east-1
+
+      - name: Configure AWS Credentials (Pool-Dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::647097321811:role/OrganizationAccountAccessRole
+          role-chaining: true
+          role-skip-session-tagging: true
+          aws-region: us-east-1
+
+      - name: Update kubeconfig for Dev EKS
+        run: aws eks update-kubeconfig --region us-east-1 --name zt-dev-platform-eks
+
+      - name: Install tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq openssl
+          # Install kubectl if not present
+          which kubectl || (
+            curl -LO "https://dl.k8s/release/$(curl -L -s https://dl.k8s/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install kubectl /usr/local/bin/
+          )
+
+      - name: Check Vault Status
+        id: vault_status
+        run: |
+          echo "=== Vault Pods ==="
+          kubectl get pods -n vault
+          echo ""
+          echo "=== Vault Services ==="
+          kubectl get svc -n vault
+          echo ""
+          echo "=== Vault Status ==="
+          kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status' || true
+
+      - name: Initialize Vault
+        if: github.event.inputs.action == 'init'
+        run: |
+          echo "=== Initializing Vault ==="
+          
+          # Check if already initialized
+          INIT_STATUS=$(kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json' 2>/dev/null | jq -r '.initialized // false' || echo "false")
+          if [ "$INIT_STATUS" = "true" ]; then
+            echo "Vault is already initialized!"
+            exit 1
+          fi
+          
+          # Initialize Vault
+          INIT_OUTPUT=$(kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault operator init -key-shares=5 -key-threshold=3 -format=json')
+          echo "$INIT_OUTPUT" | jq '.' | tee /tmp/vault-init.json
+          
+          ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
+          
+          echo ""
+          echo "========================================"
+          echo "VAULT ROOT TOKEN: $ROOT_TOKEN"
+          echo "========================================"
+          echo ""
+          echo "⚠️  Save this token securely! It will not be shown again."
+          echo ""
+          echo "Recovery Keys:"
+          echo "$INIT_OUTPUT" | jq -r '.recovery_keys_b64[]'
+          
+          # Create Kubernetes secret with root token
+          kubectl create secret generic vault-root-token \
+            --namespace=vault \
+            --from-literal=token="$ROOT_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Store in AWS Secrets Manager
+          echo ""
+          echo "Storing root token in AWS Secrets Manager..."
+          aws secretsmanager create-secret \
+            --name zt-dev-vault-root-token \
+            --description "Root token for dev Vault" \
+            --secret-string "$ROOT_TOKEN" \
+            --region us-east-1 2>/dev/null || \
+          aws secretsmanager put-secret-value \
+            --secret-id zt-dev-vault-root-token \
+            --secret-string "$ROOT_TOKEN" \
+            --region us-east-1
+          
+          echo ""
+          echo "✅ Vault initialized successfully!"
+          echo "Root token stored in:"
+          echo "  - Kubernetes secret: vault/vault-root-token"
+          echo "  - AWS Secrets Manager: zt-dev-vault-root-token"
+          echo ""
+          echo "Vault should auto-unseal via KMS. Checking status..."
+          sleep 5
+          kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status' || true
+
+      - name: Configure Vault
+        if: github.event.inputs.action == 'configure'
+        run: |
+          echo "=== Configuring Vault ==="
+          
+          # Check if Vault is initialized
+          INIT_STATUS=$(kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json' 2>/dev/null | jq -r '.initialized // false' || echo "false")
+          if [ "$INIT_STATUS" != "true" ]; then
+            echo "❌ Vault is not initialized. Run 'init' action first."
+            exit 1
+          fi
+          
+          # Check if vault-root-token secret exists
+          if ! kubectl get secret vault-root-token -n vault > /dev/null 2>&1; then
+            echo "❌ Kubernetes secret 'vault-root-token' not found in vault namespace."
+            echo "Run 'init' action first, or manually create the secret."
+            exit 1
+          fi
+          
+          echo "Applying Vault configuration manifests..."
+          kubectl apply -f environments/dev/vault/vault-config-job.yaml
+          
+          echo ""
+          echo "Waiting for configuration job to complete..."
+          kubectl wait --for=condition=complete --timeout=300s job/vault-configure -n vault
+          
+          echo ""
+          echo "=== Configuration Job Logs ==="
+          kubectl logs job/vault-configure -n vault
+          
+          echo ""
+          echo "✅ Vault configured successfully!"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Update your service deployments with Vault Agent annotations"
+          echo "  2. Deploy the services with Vault secret injection"
+
+      - name: Cleanup Config Job
+        if: github.event.inputs.action == 'configure'
+        run: |
+          echo "Cleaning up configuration job..."
+          kubectl delete job vault-configure -n vault --ignore-not-found=true
