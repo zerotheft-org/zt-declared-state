@@ -52,6 +52,58 @@ jobs:
             sudo install kubectl /usr/local/bin/
           )
 
+      - name: Wait for Vault Pods
+        run: |
+          echo "=== Waiting for Vault pods to be scheduled ==="
+          for i in $(seq 1 30); do
+            POD_STATUS=$(kubectl get pod vault-0 -n vault -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+            if [ "$POD_STATUS" = "Running" ]; then
+              echo "✅ vault-0 is Running"
+              kubectl get pods -n vault
+              break
+            elif [ "$POD_STATUS" = "Pending" ]; then
+              echo "⏳ vault-0 is Pending (attempt $i/30)..."
+              kubectl get pods -n vault
+              # Show why it's pending
+              echo ""
+              echo "=== Pod Events ==="
+              kubectl describe pod vault-0 -n vault | grep -A 20 "Events:"
+              echo ""
+              echo "=== PVC Status ==="
+              kubectl get pvc -n vault
+            elif [ "$POD_STATUS" = "NotFound" ]; then
+              echo "⏳ vault-0 not found yet (attempt $i/30)..."
+              kubectl get pods -n vault
+            else
+              echo "⚠️ vault-0 status: $POD_STATUS"
+              kubectl get pods -n vault
+              kubectl describe pod vault-0 -n vault
+            fi
+            sleep 10
+          done
+          
+          # Final check
+          POD_STATUS=$(kubectl get pod vault-0 -n vault -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
+          if [ "$POD_STATUS" != "Running" ]; then
+            echo "❌ vault-0 is not Running after 5 minutes. Debugging..."
+            echo ""
+            echo "=== All Pods ==="
+            kubectl get pods -n vault -o wide
+            echo ""
+            echo "=== Pod Describe ==="
+            kubectl describe pod vault-0 -n vault
+            echo ""
+            echo "=== PVCs ==="
+            kubectl get pvc -n vault
+            echo ""
+            echo "=== Storage Classes ==="
+            kubectl get storageclass
+            echo ""
+            echo "=== Events ==="
+            kubectl get events -n vault --sort-by='.lastTimestamp'
+            exit 1
+          fi
+
       - name: Check Vault Status
         id: vault_status
         run: |
@@ -68,6 +120,17 @@ jobs:
         if: github.event.inputs.action == 'init'
         run: |
           echo "=== Initializing Vault ==="
+          
+          # Wait for vault-0 to be ready for exec
+          echo "Waiting for vault-0 to accept connections..."
+          for i in $(seq 1 30); do
+            if kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status' >/dev/null 2>&1; then
+              echo "✅ Vault responding"
+              break
+            fi
+            echo "⏳ Waiting for Vault API... ($i/30)"
+            sleep 5
+          done
           
           # Check if already initialized
           INIT_STATUS=$(kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json' 2>/dev/null | jq -r '.initialized // false' || echo "false")
@@ -125,6 +188,17 @@ jobs:
         if: github.event.inputs.action == 'configure'
         run: |
           echo "=== Configuring Vault ==="
+          
+          # Wait for vault-0 to be ready
+          echo "Waiting for vault-0..."
+          for i in $(seq 1 30); do
+            if kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status' >/dev/null 2>&1; then
+              echo "✅ Vault responding"
+              break
+            fi
+            echo "⏳ Waiting... ($i/30)"
+            sleep 5
+          done
           
           # Check if Vault is initialized
           INIT_STATUS=$(kubectl exec -n vault vault-0 -- sh -c 'VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json' 2>/dev/null | jq -r '.initialized // false' || echo "false")
