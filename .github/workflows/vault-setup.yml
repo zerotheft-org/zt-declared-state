@@ -12,6 +12,7 @@ on:
           - status
           - init
           - configure
+          - fix-pvcs
 
 permissions:
   id-token: write
@@ -101,6 +102,21 @@ jobs:
             echo ""
             echo "=== Events ==="
             kubectl get events -n vault --sort-by='.lastTimestamp'
+            echo ""
+            echo "========================================"
+            # Check for common PVC issue
+            NO_SC=$(kubectl get pvc -n vault -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | startswith("data-vault")) | select(.spec.storageClassName == null) | .metadata.name' | wc -l)
+            if [ "$NO_SC" -gt 0 ]; then
+              echo "❌ DETECTED: Vault PVCs have NO storage class!"
+              echo ""
+              echo "This happens when the Vault Helm values don't specify a storageClass."
+              echo ""
+              echo "To fix this:"
+              echo "  1. Re-run Terraform apply for dev/addons (updates Helm release with storageClass)"
+              echo "  2. Then run this workflow with action: 'fix-pvcs'"
+              echo ""
+            fi
+            echo "========================================"
             exit 1
           fi
 
@@ -231,6 +247,87 @@ jobs:
           echo "Next steps:"
           echo "  1. Update your service deployments with Vault Agent annotations"
           echo "  2. Deploy the services with Vault secret injection"
+
+      - name: Fix Vault PVCs
+        if: github.event.inputs.action == 'fix-pvcs'
+        run: |
+          echo "=== Fixing Vault PVCs ==="
+          
+          # Check if PVCs are stuck without storage class
+          for i in 0 1 2; do
+            SC=$(kubectl get pvc data-vault-$i -n vault -o jsonpath='{.spec.storageClassName}' 2>/dev/null || echo "")
+            if [ -z "$SC" ]; then
+              echo "❌ PVC data-vault-$i has no storage class"
+            else
+              echo "✅ PVC data-vault-$i storage class: $SC"
+            fi
+          done
+          
+          echo ""
+          echo "Scaling Vault StatefulSet to 0..."
+          kubectl scale statefulset vault -n vault --replicas=0
+          
+          echo "Waiting for pods to terminate..."
+          kubectl wait --for=delete pod/vault-0 pod/vault-1 pod/vault-2 -n vault --timeout=120s || true
+          
+          echo ""
+          echo "Deleting stuck PVCs..."
+          kubectl delete pvc data-vault-0 data-vault-1 data-vault-2 -n vault --ignore-not-found=true
+          
+          echo "Waiting for PVCs to be removed..."
+          for i in $(seq 1 30); do
+            COUNT=$(kubectl get pvc -n vault --no-headers 2>/dev/null | grep "^data-vault" | wc -l)
+            if [ "$COUNT" -eq 0 ]; then
+              echo "✅ All data PVCs deleted"
+              break
+            fi
+            echo "⏳ Waiting for PVCs to delete... ($i/30)"
+            sleep 5
+          done
+          
+          echo ""
+          echo "Scaling Vault StatefulSet back to 3..."
+          kubectl scale statefulset vault -n vault --replicas=3
+          
+          echo ""
+          echo "Waiting for new PVCs to be created and bound..."
+          for i in $(seq 1 60); do
+            PENDING=$(kubectl get pvc -n vault --no-headers 2>/dev/null | grep "^data-vault" | grep -c "Pending" || echo "0")
+            BOUND=$(kubectl get pvc -n vault --no-headers 2>/dev/null | grep "^data-vault" | grep -c "Bound" || echo "0")
+            echo "PVCs - Pending: $PENDING, Bound: $BOUND"
+            
+            if [ "$BOUND" -eq 3 ] && [ "$PENDING" -eq 0 ]; then
+              echo "✅ All PVCs are Bound!"
+              kubectl get pvc -n vault
+              break
+            fi
+            
+            # Check if PVCs still have no storage class
+            NO_SC=$(kubectl get pvc -n vault -o json 2>/dev/null | jq -r '.items[] | select(.metadata.name | startswith("data-vault")) | select(.spec.storageClassName == null) | .metadata.name' | wc -l)
+            if [ "$NO_SC" -gt 0 ]; then
+              echo ""
+              echo "❌ NEW PVCs were created WITHOUT a storage class!"
+              echo "The Helm release needs to be updated with 'storageClass: gp2'."
+              echo ""
+              echo "You MUST re-run Terraform apply for dev/addons first:"
+              echo "  1. Run the terraform-apply-dev-addons workflow"
+              echo "  2. Then re-run this fix-pvcs action"
+              echo ""
+              kubectl get pvc -n vault -o yaml
+              exit 1
+            fi
+            
+            echo "⏳ Waiting... ($i/60)"
+            sleep 10
+          done
+          
+          echo ""
+          echo "Waiting for Vault pods to be Running..."
+          kubectl wait --for=condition=ready pod/vault-0 -n vault --timeout=300s || true
+          kubectl get pods -n vault
+          
+          echo ""
+          echo "✅ PVC fix complete!"
 
       - name: Cleanup Config Job
         if: github.event.inputs.action == 'configure'
